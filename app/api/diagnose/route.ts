@@ -24,6 +24,8 @@ const DiagnosisResponseSchema = z.object({
   guideline_citation: z.string(),
 });
 
+type DiagnosisAdvisory = z.infer<typeof DiagnosisResponseSchema>;
+
 function softmax(logits: Float32Array): number[] {
   const maxLogit = Math.max(...Array.from(logits));
   const exps = Array.from(logits).map((x) => Math.exp(x - maxLogit));
@@ -41,16 +43,42 @@ function retrieveGuideline(predictedLabel: string) {
   return guidelines[guidelines.length - 1];
 }
 
-async function generateWithFallback(genAI: GoogleGenerativeAI, prompt: string) {
-  const candidateModels = [
-    "gemini-3.8-flash",
-    "gemini-3.8-flash-lite",
-    "gemini-3.0-flash",
-  ];
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  let lastError: unknown;
+// Dynamically discovers available models on your API key + retries on 503
+async function generateWithSmartRetry(
+  apiKey: string,
+  genAI: GoogleGenerativeAI,
+  prompt: string,
+): Promise<string | null> {
+  const modelsToTry = new Set<string>(["gemini-3.8-flash"]);
 
-  for (const modelName of candidateModels) {
+  try {
+    const listRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
+    );
+    if (listRes.ok) {
+      const listData = await listRes.json();
+      const available = (listData.models || [])
+        .filter(
+          (m: { name?: string; supportedGenerationMethods?: string[] }) =>
+            m.supportedGenerationMethods?.includes("generateContent") &&
+            m.name?.includes("gemini") &&
+            !m.name.includes("tts") &&
+            !m.name.includes("image") &&
+            !m.name.includes("2.5"),
+        )
+        .map((m: { name: string }) => m.name.replace("models/", ""));
+
+      for (const name of available) {
+        modelsToTry.add(name);
+      }
+    }
+  } catch {
+    // Proceed with default model
+  }
+
+  for (const modelName of modelsToTry) {
     try {
       const model = genAI.getGenerativeModel({
         model: modelName,
@@ -58,16 +86,49 @@ async function generateWithFallback(genAI: GoogleGenerativeAI, prompt: string) {
       });
       const result = await model.generateContent(prompt);
       return result.response.text();
-    } catch (err) {
-      console.warn(
-        `Model ${modelName} failed or overloaded, trying fallback...`,
-        err,
-      );
-      lastError = err;
+    } catch {
+      // Silently fallback to next available model or local BARI RAG
     }
   }
 
-  throw lastError;
+  return null;
+}
+
+// Fail-safe BARI/DAE RAG fallback if Gemini servers are temporarily overloaded (503)
+// Fail-safe BARI/DAE RAG fallback if Gemini servers are temporarily overloaded (503)
+function buildLocalRagFallback(
+  predictedLabel: string,
+  ragContext: (typeof guidelines)[number],
+): DiagnosisAdvisory {
+  const parts = predictedLabel.split("___");
+  const cropEn = (parts[0] || "Crop").replace(/_/g, " ");
+  const diseaseEn = (parts[1] || "Detected Condition").replace(/_/g, " ");
+  const isHealthy = diseaseEn.toLowerCase().includes("healthy");
+
+  return {
+    crop_name_en: cropEn,
+    crop_name_bn: ragContext.crop_bn || cropEn,
+    disease_name_en: diseaseEn,
+    disease_name_bn: isHealthy
+      ? "সুস্থ পাতা (Healthy)"
+      : ragContext.disease_bn || diseaseEn,
+    severity: isHealthy ? "Healthy" : "Moderate",
+    symptoms_en: `Detected ${diseaseEn} on ${cropEn} leaf. Follow verified BARI/DAE management protocol.`,
+    symptoms_bn: `${ragContext.crop_bn} ফসলে ${ragContext.disease_bn} রোগের লক্ষণ শনাক্ত হয়েছে। নিচের BARI/DAE অনুমোদিত ব্যবস্থাপনা অনুসরণ করুন।`,
+    organic_remedy_en: [ragContext.organic_remedy],
+    organic_remedy_bn: [ragContext.organic_remedy],
+    chemical_remedy_en: ragContext.chemical_dosage,
+    chemical_remedy_bn: ragContext.chemical_dosage,
+    preventive_tips_en: [
+      "Inspect nearby plants regularly and remove severely infected leaves.",
+      "Ensure proper field drainage and balanced fertilizer application.",
+    ],
+    preventive_tips_bn: [
+      "নিয়মিত জমি পর্যবেক্ষণ করুন এবং আক্রান্ত পাতা সংগ্রহ করে ধ্বংস করুন।",
+      "জমিতে পানি নিষ্কাশনের সুব্যবস্থা রাখুন এবং সুষম সার প্রয়োগ করুন।",
+    ],
+    guideline_citation: ragContext.guideline_source,
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -79,7 +140,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No image uploaded" }, { status: 400 });
     }
 
-    // 1. Image Preprocessing (Matches PyTorch ImageNet normalization)
+    // 1. Image Preprocessing
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
@@ -98,9 +159,9 @@ export async function POST(req: NextRequest) {
       const g = data[i * info.channels + 1] / 255.0;
       const b = data[i * info.channels + 2] / 255.0;
 
-      floatData[i] = (r - mean[0]) / std[0]; // R channel
-      floatData[224 * 224 + i] = (g - mean[1]) / std[1]; // G channel
-      floatData[2 * 224 * 224 + i] = (b - mean[2]) / std[2]; // B channel
+      floatData[i] = (r - mean[0]) / std[0];
+      floatData[224 * 224 + i] = (g - mean[1]) / std[1];
+      floatData[2 * 224 * 224 + i] = (b - mean[2]) / std[2];
     }
 
     // 2. ONNX ML Inference
@@ -136,9 +197,10 @@ export async function POST(req: NextRequest) {
 
     const topPrediction = top3[0];
 
-    // 3. RAG Retrieval + Gemini Bilingual Synthesis (with Fallback)
+    // 3. RAG Retrieval + Gemini Bilingual Synthesis (with Smart Retry & RAG Fail-Safe)
     const ragContext = retrieveGuideline(topPrediction.label);
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+    const apiKey = process.env.GEMINI_API_KEY || "";
+    const genAI = new GoogleGenerativeAI(apiKey);
 
     const prompt = `
 You are an expert Bangladeshi Agronomist and Plant Pathologist.
@@ -164,9 +226,18 @@ Generate a structured JSON response strictly matching this schema:
 }
 `;
 
-    const responseText = await generateWithFallback(genAI, prompt);
-    const rawJson = JSON.parse(responseText);
-    const validatedAdvisory = DiagnosisResponseSchema.parse(rawJson);
+    let validatedAdvisory: DiagnosisAdvisory;
+    const responseText = await generateWithSmartRetry(apiKey, genAI, prompt);
+
+    if (responseText) {
+      const rawJson = JSON.parse(responseText);
+      validatedAdvisory = DiagnosisResponseSchema.parse(rawJson);
+    } else {
+      validatedAdvisory = buildLocalRagFallback(
+        topPrediction.label,
+        ragContext,
+      );
+    }
 
     return NextResponse.json({
       predictions: top3,
