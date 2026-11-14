@@ -77,7 +77,7 @@ async function generateWithSmartRetry(
   return null;
 }
 
-// Fail-safe BARI/DAE RAG fallback if Gemini servers are temporarily overloaded (503)
+
 // Fail-safe BARI/DAE RAG fallback if Gemini servers are temporarily overloaded (503)
 function buildLocalRagFallback(
   predictedLabel: string,
