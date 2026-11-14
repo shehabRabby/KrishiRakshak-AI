@@ -41,6 +41,35 @@ function retrieveGuideline(predictedLabel: string) {
   return guidelines[guidelines.length - 1];
 }
 
+async function generateWithFallback(genAI: GoogleGenerativeAI, prompt: string) {
+  const candidateModels = [
+    "gemini-3.8-flash",
+    "gemini-3.8-flash-lite",
+    "gemini-3.0-flash",
+  ];
+
+  let lastError: unknown;
+
+  for (const modelName of candidateModels) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: { responseMimeType: "application/json" },
+      });
+      const result = await model.generateContent(prompt);
+      return result.response.text();
+    } catch (err) {
+      console.warn(
+        `Model ${modelName} failed or overloaded, trying fallback...`,
+        err,
+      );
+      lastError = err;
+    }
+  }
+
+  throw lastError;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -107,13 +136,9 @@ export async function POST(req: NextRequest) {
 
     const topPrediction = top3[0];
 
-    // 3. RAG Retrieval + Gemini Bilingual Synthesis
+    // 3. RAG Retrieval + Gemini Bilingual Synthesis (with Fallback)
     const ragContext = retrieveGuideline(topPrediction.label);
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      generationConfig: { responseMimeType: "application/json" },
-    });
 
     const prompt = `
 You are an expert Bangladeshi Agronomist and Plant Pathologist.
@@ -139,8 +164,8 @@ Generate a structured JSON response strictly matching this schema:
 }
 `;
 
-    const aiResult = await model.generateContent(prompt);
-    const rawJson = JSON.parse(aiResult.response.text());
+    const responseText = await generateWithFallback(genAI, prompt);
+    const rawJson = JSON.parse(responseText);
     const validatedAdvisory = DiagnosisResponseSchema.parse(rawJson);
 
     return NextResponse.json({
