@@ -5,6 +5,8 @@
 
 KrishiRakshak AI is a full-stack agentic agricultural diagnostic platform built to help Bangladeshi farmers and extension workers detect crop diseases from leaf photos in seconds and receive safe, verified treatment plans in both **Bangla (বাংলা)** and **English**.
 
+## live Link : https://krishi-rakshak-ai-five.vercel.app/
+
 ---
 
 ## ✨ Key Features
