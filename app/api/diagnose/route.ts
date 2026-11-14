@@ -47,36 +47,11 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Dynamically discovers available models on your API key + retries on 503
 async function generateWithSmartRetry(
-  apiKey: string,
+  _apiKey: string,
   genAI: GoogleGenerativeAI,
-  prompt: string,
+  prompt: string
 ): Promise<string | null> {
-  const modelsToTry = new Set<string>(["gemini-3.8-flash"]);
-
-  try {
-    const listRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
-    );
-    if (listRes.ok) {
-      const listData = await listRes.json();
-      const available = (listData.models || [])
-        .filter(
-          (m: { name?: string; supportedGenerationMethods?: string[] }) =>
-            m.supportedGenerationMethods?.includes("generateContent") &&
-            m.name?.includes("gemini") &&
-            !m.name.includes("tts") &&
-            !m.name.includes("image") &&
-            !m.name.includes("2.5"),
-        )
-        .map((m: { name: string }) => m.name.replace("models/", ""));
-
-      for (const name of available) {
-        modelsToTry.add(name);
-      }
-    }
-  } catch {
-    // Proceed with default model
-  }
+  const modelsToTry = ["gemini-3.8-flash"];
 
   for (const modelName of modelsToTry) {
     try {
@@ -84,10 +59,18 @@ async function generateWithSmartRetry(
         model: modelName,
         generationConfig: { responseMimeType: "application/json" },
       });
-      const result = await model.generateContent(prompt);
+
+      // Race against a 6-second timeout so UI never hangs on 503 congestion
+      const result = await Promise.race([
+        model.generateContent(prompt),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Gemini timeout")), 6000)
+        ),
+      ]);
+
       return result.response.text();
     } catch {
-      // Silently fallback to next available model or local BARI RAG
+      // Immediately fall back to verified local BARI/DAE RAG
     }
   }
 
