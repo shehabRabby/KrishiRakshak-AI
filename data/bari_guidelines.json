@@ -1,0 +1,47 @@
+[
+  {
+    "keywords": ["Late_blight", "Early_blight", "Potato", "Tomato"],
+    "crop_bn": "আলু / টমেটো",
+    "disease_bn": "নাবি ধসা বা আগাম ধসা রোগ (Blight)",
+    "guideline_source": "BARI Crop Disease Management Handbook (Section 4.2)",
+    "organic_remedy": "আক্রান্ত পাতা তুলে পুড়িয়ে ফেলুন। প্রতি লিটার পানিতে ২ গ্রাম ট্রাইকোডার্মা ভিরিডি (Trichoderma viride) মিশিয়ে স্প্রে করুন এবং জমিতে পানি জমতে দেবেন না।",
+    "chemical_dosage": "ম্যানকোজেব (Mancozeb 80% WP) প্রতি লিটার পানিতে ২ গ্রাম অথবা মেটালাক্সিল + ম্যানকোজেব (Ridomil Gold) ২ গ্রাম/লিটার হারে ৭-১০ দিন পরপর স্প্রে করুন (সর্বোচ্চ ৩ বার)।"
+  },
+  {
+    "keywords": [
+      "Bacterial_spot",
+      "Leaf_Mold",
+      "Septoria_leaf_spot",
+      "Target_Spot"
+    ],
+    "crop_bn": "টমেটো / মরিচ",
+    "disease_bn": "পাতার দাগ বা ব্যাকটেরিয়াল স্পট রোগ",
+    "guideline_source": "DAE Integrated Pest Management (IPM) Manual",
+    "organic_remedy": "রোগমুক্ত বীজ ব্যবহার করুন। নিম তেল (৫ মিলি/লিটার পানি) ও সাবান পানি মিশিয়ে ৭ দিন পরপর স্প্রে করুন।",
+    "chemical_dosage": "কপার হাইড্রোক্সাইড (Champion 77 WP) প্রতি লিটার পানিতে ২ গ্রাম হারে সকালে বা বিকেলে স্প্রে করুন।"
+  },
+  {
+    "keywords": ["Common_rust", "Northern_Leaf_Blight", "Cercospora", "Corn"],
+    "crop_bn": "ভুট্টা (Corn/Maize)",
+    "disease_bn": "ভুট্টার পাতার মরিচা বা ঝলসানো রোগ",
+    "guideline_source": "BARI Maize Cultivation & Disease Guide",
+    "organic_remedy": "ফসল কাটার পর পরিত্যক্ত অংশ পুড়িয়ে ফেলুন এবং সুষম ইউরিয়া ও পটাশ সার ব্যবহার করুন।",
+    "chemical_dosage": "প্রপিকোনাজল (Tilt 250 EC) প্রতি লিটার পানিতে ০.৫ মিলি মিশিয়ে আক্রান্ত গাছে স্প্রে করুন।"
+  },
+  {
+    "keywords": ["healthy"],
+    "crop_bn": "সুস্থ ফসল",
+    "disease_bn": "কোনো রোগ শনাক্ত হয়নি (Healthy Leaf)",
+    "guideline_source": "BARI Preventive Agronomy Protocol",
+    "organic_remedy": "আপনার গাছটি সুস্থ আছে। নিয়মিত জৈব সার ও পরিমিত সেচ দিন এবং সপ্তাহে একবার পাতার নিচ দিক পরীক্ষা করুন।",
+    "chemical_dosage": "কোনো রাসায়নিক কীটনাশকের প্রয়োজন নেই।"
+  },
+  {
+    "keywords": ["default"],
+    "crop_bn": "ফসল",
+    "disease_bn": "ছত্রাক বা ব্যাকটেরিয়াজনিত পাতার রোগ",
+    "guideline_source": "BARI General Plant Pathology Advisory",
+    "organic_remedy": "আক্রান্ত পাতা ছাঁটাই করে মাটিতে পুঁতে ফেলুন। নিম তেল বা বোর্দো মিক্সচার (১%) স্প্রে করুন।",
+    "chemical_dosage": "কার্বেন্ডাজিম (Autostin 50 WDG) প্রতি লিটার পানিতে ১-২ গ্রাম হারে স্প্রে করুন এবং প্রয়োজনে নিকটস্থ উপ-সহকারী কৃষি কর্মকর্তার পরামর্শ নিন।"
+  }
+]
