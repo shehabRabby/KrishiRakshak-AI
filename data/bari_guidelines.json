@@ -1,23 +1,18 @@
 [
   {
-    "keywords": ["Late_blight", "Early_blight", "Potato", "Tomato"],
+    "keywords": ["Late_blight", "Early_blight", "Potato", "Tomato___Late", "Tomato___Early"],
     "crop_bn": "আলু / টমেটো",
     "disease_bn": "নাবি ধসা বা আগাম ধসা রোগ (Blight)",
     "guideline_source": "BARI Crop Disease Management Handbook (Section 4.2)",
-    "organic_remedy": "আক্রান্ত পাতা তুলে পুড়িয়ে ফেলুন। প্রতি লিটার পানিতে ২ গ্রাম ট্রাইকোডার্মা ভিরিডি (Trichoderma viride) মিশিয়ে স্প্রে করুন এবং জমিতে পানি জমতে দেবেন না।",
+    "organic_remedy": "আক্রান্ত পাতা তুলে পুড়িয়ে ফেলুন। প্রতি লিটার পানিতে ২ গ্রাম ট্রাইকোডার্মা ভিরিডি (Trichoderma viride) মিশিয়ে স্প্রে করুন এবং জমিতে পানি জমতে দেবেন না।",
     "chemical_dosage": "ম্যানকোজেব (Mancozeb 80% WP) প্রতি লিটার পানিতে ২ গ্রাম অথবা মেটালাক্সিল + ম্যানকোজেব (Ridomil Gold) ২ গ্রাম/লিটার হারে ৭-১০ দিন পরপর স্প্রে করুন (সর্বোচ্চ ৩ বার)।"
   },
   {
-    "keywords": [
-      "Bacterial_spot",
-      "Leaf_Mold",
-      "Septoria_leaf_spot",
-      "Target_Spot"
-    ],
+    "keywords": ["Bacterial_spot", "Leaf_Mold", "Septoria_leaf_spot", "Target_Spot", "Spider_mites"],
     "crop_bn": "টমেটো / মরিচ",
-    "disease_bn": "পাতার দাগ বা ব্যাকটেরিয়াল স্পট রোগ",
+    "disease_bn": "পাতার দাগ বা ব্যাকটেরিয়াল স্পট রোগ",
     "guideline_source": "DAE Integrated Pest Management (IPM) Manual",
-    "organic_remedy": "রোগমুক্ত বীজ ব্যবহার করুন। নিম তেল (৫ মিলি/লিটার পানি) ও সাবান পানি মিশিয়ে ৭ দিন পরপর স্প্রে করুন।",
+    "organic_remedy": "রোগমুক্ত বীজ ব্যবহার করুন। নিম তেল (৫ মিলি/লিটার পানি) ও সাবান পানি মিশিয়ে ৭ দিন পরপর স্প্রে করুন।",
     "chemical_dosage": "কপার হাইড্রোক্সাইড (Champion 77 WP) প্রতি লিটার পানিতে ২ গ্রাম হারে সকালে বা বিকেলে স্প্রে করুন।"
   },
   {
@@ -25,23 +20,47 @@
     "crop_bn": "ভুট্টা (Corn/Maize)",
     "disease_bn": "ভুট্টার পাতার মরিচা বা ঝলসানো রোগ",
     "guideline_source": "BARI Maize Cultivation & Disease Guide",
-    "organic_remedy": "ফসল কাটার পর পরিত্যক্ত অংশ পুড়িয়ে ফেলুন এবং সুষম ইউরিয়া ও পটাশ সার ব্যবহার করুন।",
-    "chemical_dosage": "প্রপিকোনাজল (Tilt 250 EC) প্রতি লিটার পানিতে ০.৫ মিলি মিশিয়ে আক্রান্ত গাছে স্প্রে করুন।"
+    "organic_remedy": "ফসল কাটার পর পরিত্যক্ত অংশ পুড়িয়ে ফেলুন এবং সুষম ইউরিয়া ও পটাশ সার ব্যবহার করুন।",
+    "chemical_dosage": "প্রপিকোনাজল (Tilt 250 EC) প্রতি লিটার পানিতে ০.৫ মিলি মিশিয়ে আক্রান্ত গাছে স্প্রে করুন।"
+  },
+  {
+    "keywords": ["Leaf_scorch", "Strawberry", "Apple_scab", "Black_rot", "Cedar_apple_rust", "Esca", "Leaf_blight"],
+    "crop_bn": "ফল জাতীয় ফসল (স্ট্রবেরি / আপেল / আঙুর)",
+    "disease_bn": "পাতা ঝলসানো বা স্ক্যাব রোগ (Leaf Scorch / Scab)",
+    "guideline_source": "BARI Horticulture & Orchard Disease Protocol",
+    "organic_remedy": "আক্রান্ত ও শুকনো পাতা ছাঁটাই করে বাগান পরিষ্কার রাখুন। গাছের গোড়ায় মালচিং ব্যবহার করুন যাতে মাটির জীবাণু পাতায় না লাগে।",
+    "chemical_dosage": "ক্যাপটান (Captan 50 WP) বা কার্বেন্ডাজিম (Autostin 50 WDG) প্রতি লিটার পানিতে ১.৫-২ গ্রাম হারে ১০ দিন পরপর স্প্রে করুন।"
+  },
+  {
+    "keywords": ["Powdery_mildew", "Haunglongbing", "Citrus"],
+    "crop_bn": "কুমড়া জাতীয় / লেবু জাতীয় ফসল",
+    "disease_bn": "পাউডারি মিলডিউ বা সাইট্রাস গ্রিনিং রোগ",
+    "guideline_source": "DAE Orchard & Vegetable Protection Guide",
+    "organic_remedy": "প্রতি লিটার পানিতে ৫ গ্রাম বেকিং সোডা ও ২ মিলি তরল সাবান মিশিয়ে পাতার উভয় পাশে স্প্রে করুন এবং বাহক পোকা (সাদা মাছি/সাইলিড) দমনে হলুদ আঠালো ফাঁদ ব্যবহার করুন।",
+    "chemical_dosage": "সালফার জাতীয় ছত্রাকনাশক (Thiovit 80 WG) প্রতি লিটার পানিতে ২ গ্রাম হারে স্প্রে করুন।"
+  },
+  {
+    "keywords": ["Yellow_Leaf_Curl_Virus", "mosaic_virus"],
+    "crop_bn": "টমেটো / সবজি ফসল",
+    "disease_bn": "পাতা কুঁকড়ানো বা মোজাইক ভাইরাস রোগ",
+    "guideline_source": "BARI Viral Disease Control Advisory",
+    "organic_remedy": "ভাইরাস আক্রান্ত গাছ দেখা মাত্রই শিকড়সহ তুলে মাটিতে পুঁতে ফেলুন। বাহক পোকা (সাদা মাছি) দমনে নিম তেল ও হলুদ ফাঁদ ব্যবহার করুন।",
+    "chemical_dosage": "ভাইরাসের সরাসরি কোনো ওষুধ নেই; বাহক পোকা দমনে ইমিডাক্লোপ্রিড (Admire 200 SL) প্রতি লিটার পানিতে ০.৫ মিলি মিশিয়ে স্প্রে করুন।"
   },
   {
     "keywords": ["healthy"],
     "crop_bn": "সুস্থ ফসল",
-    "disease_bn": "কোনো রোগ শনাক্ত হয়নি (Healthy Leaf)",
+    "disease_bn": "কোনো রোগ শনাক্ত হয়নি (Healthy Leaf)",
     "guideline_source": "BARI Preventive Agronomy Protocol",
-    "organic_remedy": "আপনার গাছটি সুস্থ আছে। নিয়মিত জৈব সার ও পরিমিত সেচ দিন এবং সপ্তাহে একবার পাতার নিচ দিক পরীক্ষা করুন।",
-    "chemical_dosage": "কোনো রাসায়নিক কীটনাশকের প্রয়োজন নেই।"
+    "organic_remedy": "আপনার গাছটি সুস্থ আছে। নিয়মিত জৈব সার ও পরিমিত সেচ দিন এবং সপ্তাহে একবার পাতার নিচ দিক পরীক্ষা করুন।",
+    "chemical_dosage": "কোনো রাসায়নিক কীটনাশকের প্রয়োজন নেই।"
   },
   {
     "keywords": ["default"],
     "crop_bn": "ফসল",
-    "disease_bn": "ছত্রাক বা ব্যাকটেরিয়াজনিত পাতার রোগ",
+    "disease_bn": "ছত্রাক বা ব্যাকটেরিয়াজনিত পাতার রোগ",
     "guideline_source": "BARI General Plant Pathology Advisory",
     "organic_remedy": "আক্রান্ত পাতা ছাঁটাই করে মাটিতে পুঁতে ফেলুন। নিম তেল বা বোর্দো মিক্সচার (১%) স্প্রে করুন।",
-    "chemical_dosage": "কার্বেন্ডাজিম (Autostin 50 WDG) প্রতি লিটার পানিতে ১-২ গ্রাম হারে স্প্রে করুন এবং প্রয়োজনে নিকটস্থ উপ-সহকারী কৃষি কর্মকর্তার পরামর্শ নিন।"
+    "chemical_dosage": "কার্বেন্ডাজিম (Autostin 50 WDG) প্রতি লিটার পানিতে ১-২ গ্রাম হারে স্প্রে করুন এবং প্রয়োজনে নিকটস্থ উপ-সহকারী কৃষি কর্মকর্তার পরামর্শ নিন।"
   }
 ]
