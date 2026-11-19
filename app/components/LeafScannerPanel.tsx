@@ -1,9 +1,18 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Image from "next/image";
-import { Upload, Camera, Loader2, Trash2, Activity, History, X } from "lucide-react";
+import {
+  Upload,
+  Camera,
+  Loader2,
+  Trash2,
+  Activity,
+  History,
+  X,
+} from "lucide-react";
 import { SavedSession, updateSession } from "@/app/lib/useKrishiStore";
+import CameraModal from "./CameraModal";
 
 interface Props {
   lang: "bn" | "en";
@@ -24,6 +33,8 @@ export default function LeafScannerPanel({
   onClear,
   onAnalyze,
 }: Props) {
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+
   const handleDeleteHistoryItem = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     updateSession({
@@ -35,10 +46,20 @@ export default function LeafScannerPanel({
 
   return (
     <div className="space-y-5 lg:col-span-5 no-print">
+      {isCameraOpen && (
+        <CameraModal
+          lang={lang}
+          onCapture={(file) => onFileSelect(file)}
+          onClose={() => setIsCameraOpen(false)}
+        />
+      )}
+
       <div className="rounded-2xl border border-emerald-800/70 bg-gradient-to-b from-emerald-900/25 to-emerald-950/60 p-5 shadow-xl">
         <div className="mb-3 flex items-center justify-between text-xs font-semibold text-emerald-300">
           <span className="tracking-wider uppercase">
-            {lang === "bn" ? "১. পাতার ছবি স্ক্যানার" : "1. Optical Leaf Scanner"}
+            {lang === "bn"
+              ? "১. পাতার ছবি স্ক্যানার"
+              : "1. Optical Leaf Scanner"}
           </span>
           {session.previewUrl && (
             <button
@@ -83,30 +104,35 @@ export default function LeafScannerPanel({
                 <Upload className="h-6 w-6" />
               </div>
               <p className="mt-3 text-sm font-semibold text-white">
-                {lang === "bn" ? "ছবি ড্র্যাগ করুন অথবা ক্লিক করুন" : "Drag & drop or click to upload"}
+                {lang === "bn"
+                  ? "ছবি ড্র্যাগ করুন অথবা ক্লিক করুন"
+                  : "Drag & drop or click to upload"}
               </p>
-              <p className="mt-1 text-xs text-emerald-300/60">JPG, PNG, WEBP • 38 Crop Classes</p>
+              <p className="mt-1 text-xs text-emerald-300/60">
+                JPG, PNG, WEBP • 38 Crop Classes
+              </p>
             </div>
           )}
           <input
             type="file"
             accept="image/*"
-            onChange={(e) => e.target.files?.[0] && onFileSelect(e.target.files[0])}
+            onChange={(e) =>
+              e.target.files?.[0] && onFileSelect(e.target.files[0])
+            }
             className="hidden"
           />
         </label>
 
-        <label className="mt-2.5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-emerald-700/80 bg-[#020f0b]/80 px-4 py-2 text-xs font-semibold text-emerald-200 transition hover:border-emerald-500 hover:bg-emerald-950/60">
+        <button
+          type="button"
+          onClick={() => setIsCameraOpen(true)}
+          className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-700/80 bg-[#020f0b]/80 px-4 py-2 text-xs font-semibold text-emerald-200 transition hover:border-emerald-500 hover:bg-emerald-950/60"
+        >
           <Camera className="h-4 w-4 text-emerald-400" />
-          <span>{lang === "bn" ? "ক্যামেরা দিয়ে ছবি তুলুন" : "Capture with Camera"}</span>
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={(e) => e.target.files?.[0] && onFileSelect(e.target.files[0])}
-            className="hidden"
-          />
-        </label>
+          <span>
+            {lang === "bn" ? "ক্যামেরা দিয়ে ছবি তুলুন" : "Capture with Camera"}
+          </span>
+        </button>
 
         <button
           onClick={onAnalyze}
@@ -116,17 +142,27 @@ export default function LeafScannerPanel({
           {loading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span>{lang === "bn" ? "AI ভিশন বিশ্লেষণ চলছে..." : "Running Neural Scan..."}</span>
+              <span>
+                {lang === "bn"
+                  ? "AI ভিশন বিশ্লেষণ চলছে..."
+                  : "Running Neural Scan..."}
+              </span>
             </>
           ) : (
             <>
               <Activity className="h-4 w-4" />
-              <span>{lang === "bn" ? "রোগ শনাক্ত করুন" : "Diagnose Disease"}</span>
+              <span>
+                {lang === "bn" ? "রোগ শনাক্ত করুন" : "Diagnose Disease"}
+              </span>
             </>
           )}
         </button>
 
-        {error && <p className="mt-3 rounded-lg bg-rose-950/70 p-3 text-xs text-rose-200">{error}</p>}
+        {error && (
+          <p className="mt-3 rounded-lg bg-rose-950/70 p-3 text-xs text-rose-200">
+            {error}
+          </p>
+        )}
       </div>
 
       {session.history.length > 0 && (
