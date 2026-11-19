@@ -16,6 +16,7 @@ import {
   Cpu,
   Database,
   ShieldCheck,
+  X,
 } from "lucide-react";
 
 import DiagnosisReport, { DiagnosisResult } from "./components/DiagnosisReport";
@@ -25,6 +26,66 @@ interface HistoryItem {
   timestamp: string;
   preview: string;
   data: DiagnosisResult;
+}
+
+interface SavedSession {
+  previewUrl: string | null;
+  result: DiagnosisResult | null;
+  history: HistoryItem[];
+}
+
+const SESSION_KEY = "krishirakshak_active_session";
+const EMPTY_SESSION: SavedSession = { previewUrl: null, result: null, history: [] };
+let cachedRawSession: string | null = null;
+let cachedParsedSession: SavedSession = EMPTY_SESSION;
+
+function getSessionSnapshot(): SavedSession {
+  if (typeof window === "undefined") return EMPTY_SESSION;
+  const raw = sessionStorage.getItem(SESSION_KEY);
+  if (raw === cachedRawSession) return cachedParsedSession;
+  cachedRawSession = raw;
+  try {
+    cachedParsedSession = raw ? (JSON.parse(raw) as SavedSession) : EMPTY_SESSION;
+  } catch {
+    cachedParsedSession = EMPTY_SESSION;
+  }
+  return cachedParsedSession;
+}
+
+function updateSession(next: SavedSession) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(next));
+  } catch {
+    // Fallback if storage quota is tight: keep only latest item
+    sessionStorage.setItem(
+      SESSION_KEY,
+      JSON.stringify({ ...next, history: next.history.slice(0, 1) })
+    );
+  }
+  window.dispatchEvent(new Event("krishirakshak_session_change"));
+}
+
+// Convert uploaded leaf image to lightweight persistent Data URL so it survives route changes
+function fileToPersistentDataUrl(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const maxDim = 480;
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 export default function HomePage() {
@@ -37,12 +98,18 @@ export default function HomePage() {
     () => "bn"
   );
 
+  const session = useSyncExternalStore<SavedSession>(
+    (cb) => {
+      window.addEventListener("krishirakshak_session_change", cb);
+      return () => window.removeEventListener("krishirakshak_session_change", cb);
+    },
+    getSessionSnapshot,
+    () => EMPTY_SESSION
+  );
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<DiagnosisResult | null>(null);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
 
   const toggleLang = () => {
     const next = lang === "bn" ? "en" : "bn";
@@ -50,36 +117,69 @@ export default function HomePage() {
     window.dispatchEvent(new Event("storage"));
   };
 
-  const processFile = (file: File) => {
+  const processFile = async (file: File) => {
     setSelectedFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
-    setResult(null);
     setError(null);
+    const dataUrl = await fileToPersistentDataUrl(file);
+    updateSession({
+      previewUrl: dataUrl,
+      result: null,
+      history: session.history,
+    });
+  };
+
+  const handleClearCurrent = () => {
+    setSelectedFile(null);
+    setError(null);
+    updateSession({
+      previewUrl: null,
+      result: null,
+      history: session.history,
+    });
+  };
+
+  const handleDeleteHistoryItem = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const updatedHistory = session.history.filter((item) => item.id !== id);
+    updateSession({
+      previewUrl: session.previewUrl,
+      result: session.result,
+      history: updatedHistory,
+    });
   };
 
   const handleAnalyze = async () => {
-    if (!selectedFile || !previewUrl) return;
+    if (!session.previewUrl) return;
     setLoading(true);
     setError(null);
 
     try {
       const formData = new FormData();
-      formData.append("image", selectedFile);
+      if (selectedFile) {
+        formData.append("image", selectedFile);
+      } else {
+        // Re-create blob from persisted Data URL if user returned from /tools and clicked Diagnose again
+        const blobRes = await fetch(session.previewUrl);
+        const blob = await blobRes.blob();
+        formData.append("image", blob, "leaf.jpg");
+      }
 
       const res = await fetch("/api/diagnose", { method: "POST", body: formData });
       const data: DiagnosisResult & { error?: string } = await res.json();
       if (!res.ok) throw new Error(data.error || "Analysis failed");
 
-      setResult(data);
-      setHistory((prev) => [
-        {
-          id: Date.now().toString(),
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          preview: previewUrl,
-          data,
-        },
-        ...prev.slice(0, 3),
-      ]);
+      const newHistoryItem: HistoryItem = {
+        id: Date.now().toString(),
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        preview: session.previewUrl,
+        data,
+      };
+
+      updateSession({
+        previewUrl: session.previewUrl,
+        result: data,
+        history: [newHistoryItem, ...session.history.slice(0, 3)],
+      });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -149,13 +249,9 @@ export default function HomePage() {
             <div className="rounded-2xl border border-emerald-800/70 bg-emerald-950/50 p-5">
               <div className="mb-3 flex items-center justify-between text-xs font-semibold text-emerald-300">
                 <span>{lang === "bn" ? "পাতার ছবি আপলোড" : "LEAF SCANNER"}</span>
-                {selectedFile && (
+                {session.previewUrl && (
                   <button
-                    onClick={() => {
-                      setSelectedFile(null);
-                      setPreviewUrl(null);
-                      setResult(null);
-                    }}
+                    onClick={handleClearCurrent}
                     className="flex items-center gap-1 text-rose-300 hover:text-rose-200"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -173,9 +269,9 @@ export default function HomePage() {
                 }}
                 className="flex min-h-[250px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-emerald-700/80 bg-[#020f0b]/80 p-5 transition hover:border-emerald-400"
               >
-                {previewUrl ? (
+                {session.previewUrl ? (
                   <Image
-                    src={previewUrl}
+                    src={session.previewUrl}
                     alt="Leaf preview"
                     width={240}
                     height={240}
@@ -201,7 +297,7 @@ export default function HomePage() {
 
               <button
                 onClick={handleAnalyze}
-                disabled={!selectedFile || loading}
+                disabled={!session.previewUrl || loading}
                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-emerald-950 transition hover:bg-emerald-400 disabled:opacity-40"
               >
                 {loading ? (
@@ -222,21 +318,24 @@ export default function HomePage() {
               )}
             </div>
 
-            {history.length > 0 && (
+            {session.history.length > 0 && (
               <div className="rounded-2xl border border-emerald-800/60 bg-emerald-950/40 p-4">
                 <div className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-300">
                   <History className="h-3.5 w-3.5" />
                   <span>{lang === "bn" ? "সাম্প্রতিক স্ক্যান" : "Recent Scans"}</span>
                 </div>
                 <div className="space-y-2">
-                  {history.map((item) => (
-                    <button
+                  {session.history.map((item) => (
+                    <div
                       key={item.id}
-                      onClick={() => {
-                        setPreviewUrl(item.preview);
-                        setResult(item.data);
-                      }}
-                      className="flex w-full items-center justify-between rounded-xl border border-emerald-800/50 bg-[#020f0b]/60 p-2 text-left hover:border-emerald-600"
+                      onClick={() =>
+                        updateSession({
+                          previewUrl: item.preview,
+                          result: item.data,
+                          history: session.history,
+                        })
+                      }
+                      className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-emerald-800/50 bg-[#020f0b]/60 p-2 text-left transition hover:border-emerald-600"
                     >
                       <div className="flex items-center gap-2.5">
                         <Image
@@ -258,8 +357,14 @@ export default function HomePage() {
                           </p>
                         </div>
                       </div>
-                      <span className="text-xs text-emerald-400">→</span>
-                    </button>
+                      <button
+                        onClick={(e) => handleDeleteHistoryItem(e, item.id)}
+                        title={lang === "bn" ? "মুছে ফেলুন" : "Remove"}
+                        className="rounded-lg p-1 text-slate-400 hover:bg-rose-950/60 hover:text-rose-300"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -268,7 +373,7 @@ export default function HomePage() {
 
           {/* Right: Report or Clean 3-Step Pipeline Guide */}
           <div className="lg:col-span-7">
-            {!result ? (
+            {!session.result ? (
               <div className="flex h-full min-h-[360px] flex-col items-center justify-center rounded-2xl border border-emerald-800/50 bg-emerald-950/30 p-8 text-center">
                 <div className="rounded-2xl bg-emerald-500/10 p-3.5 text-emerald-400 ring-1 ring-emerald-500/20">
                   <Leaf className="h-9 w-9" />
@@ -315,7 +420,7 @@ export default function HomePage() {
                 </div>
               </div>
             ) : (
-              <DiagnosisReport result={result} lang={lang} />
+              <DiagnosisReport result={session.result} lang={lang} />
             )}
           </div>
         </div>
