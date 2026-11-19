@@ -26,6 +26,22 @@ const DiagnosisResponseSchema = z.object({
 
 type DiagnosisAdvisory = z.infer<typeof DiagnosisResponseSchema>;
 
+// Cache ONNX session across warm serverless invocations
+let cachedSession: ort.InferenceSession | null = null;
+let cachedLabels: Record<string, string> | null = null;
+
+async function getModelAndLabels() {
+  if (!cachedSession) {
+    const modelPath = path.join(process.cwd(), "public", "models", "crop_disease_model.onnx");
+    cachedSession = await ort.InferenceSession.create(modelPath);
+  }
+  if (!cachedLabels) {
+    const labelsPath = path.join(process.cwd(), "public", "models", "labels.json");
+    cachedLabels = JSON.parse(fs.readFileSync(labelsPath, "utf-8"));
+  }
+  return { session: cachedSession, labelsMap: cachedLabels! };
+}
+
 function softmax(logits: Float32Array): number[] {
   const maxLogit = Math.max(...Array.from(logits));
   const exps = Array.from(logits).map((x) => Math.exp(x - maxLogit));
@@ -43,15 +59,11 @@ function retrieveGuideline(predictedLabel: string) {
   return guidelines[guidelines.length - 1];
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// Dynamically discovers available models on your API key + retries on 503
 async function generateWithSmartRetry(
-  _apiKey: string,
   genAI: GoogleGenerativeAI,
   prompt: string
 ): Promise<string | null> {
-  const modelsToTry = ["gemini-3.8-flash"];
+  const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash"];
 
   for (const modelName of modelsToTry) {
     try {
@@ -60,28 +72,25 @@ async function generateWithSmartRetry(
         generationConfig: { responseMimeType: "application/json" },
       });
 
-      // Race against a 6-second timeout so UI never hangs on 503 congestion
       const result = await Promise.race([
         model.generateContent(prompt),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Gemini timeout")), 6000)
+          setTimeout(() => reject(new Error("Gemini timeout")), 7000)
         ),
       ]);
 
       return result.response.text();
     } catch {
-      // Immediately fall back to verified local BARI/DAE RAG
+      // Try next model or fall back to local BARI/DAE RAG
     }
   }
 
   return null;
 }
 
-
-// Fail-safe BARI/DAE RAG fallback if Gemini servers are temporarily overloaded (503)
 function buildLocalRagFallback(
   predictedLabel: string,
-  ragContext: (typeof guidelines)[number],
+  ragContext: (typeof guidelines)[number]
 ): DiagnosisAdvisory {
   const parts = predictedLabel.split("___");
   const cropEn = (parts[0] || "Crop").replace(/_/g, " ");
@@ -97,7 +106,7 @@ function buildLocalRagFallback(
       : ragContext.disease_bn || diseaseEn,
     severity: isHealthy ? "Healthy" : "Moderate",
     symptoms_en: `Detected ${diseaseEn} on ${cropEn} leaf. Follow verified BARI/DAE management protocol.`,
-    symptoms_bn: `${ragContext.crop_bn} ফসলে ${ragContext.disease_bn} রোগের লক্ষণ শনাক্ত হয়েছে। নিচের BARI/DAE অনুমোদিত ব্যবস্থাপনা অনুসরণ করুন।`,
+    symptoms_bn: `${ragContext.crop_bn} ফসলে ${ragContext.disease_bn} রোগের লক্ষণ শনাক্ত হয়েছে। নিচের BARI/DAE অনুমোদিত ব্যবস্থাপনা অনুসরণ করুন।`,
     organic_remedy_en: [ragContext.organic_remedy],
     organic_remedy_bn: [ragContext.organic_remedy],
     chemical_remedy_en: ragContext.chemical_dosage,
@@ -107,8 +116,8 @@ function buildLocalRagFallback(
       "Ensure proper field drainage and balanced fertilizer application.",
     ],
     preventive_tips_bn: [
-      "নিয়মিত জমি পর্যবেক্ষণ করুন এবং আক্রান্ত পাতা সংগ্রহ করে ধ্বংস করুন।",
-      "জমিতে পানি নিষ্কাশনের সুব্যবস্থা রাখুন এবং সুষম সার প্রয়োগ করুন।",
+      "নিয়মিত জমি পর্যবেক্ষণ করুন এবং আক্রান্ত পাতা সংগ্রহ করে ধ্বংস করুন।",
+      "জমিতে পানি নিষ্কাশনের সুব্যবস্থা রাখুন এবং সুষম সার প্রয়োগ করুন।",
     ],
     guideline_citation: ragContext.guideline_source,
   };
@@ -148,23 +157,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. ONNX ML Inference
-    const modelPath = path.join(
-      process.cwd(),
-      "public",
-      "models",
-      "crop_disease_model.onnx",
-    );
-    const labelsPath = path.join(
-      process.cwd(),
-      "public",
-      "models",
-      "labels.json",
-    );
-    const labelsMap: Record<string, string> = JSON.parse(
-      fs.readFileSync(labelsPath, "utf-8"),
-    );
-
-    const session = await ort.InferenceSession.create(modelPath);
+    const { session, labelsMap } = await getModelAndLabels();
     const inputTensor = new ort.Tensor("float32", floatData, [1, 3, 224, 224]);
     const results = await session.run({ input: inputTensor });
     const logits = results.output.data as Float32Array;
@@ -180,7 +173,7 @@ export async function POST(req: NextRequest) {
 
     const topPrediction = top3[0];
 
-    // 3. RAG Retrieval + Gemini Bilingual Synthesis (with Smart Retry & RAG Fail-Safe)
+    // 3. RAG Retrieval + Gemini Bilingual Synthesis
     const ragContext = retrieveGuideline(topPrediction.label);
     const apiKey = process.env.GEMINI_API_KEY || "";
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -210,16 +203,17 @@ Generate a structured JSON response strictly matching this schema:
 `;
 
     let validatedAdvisory: DiagnosisAdvisory;
-    const responseText = await generateWithSmartRetry(apiKey, genAI, prompt);
+    const responseText = apiKey ? await generateWithSmartRetry(genAI, prompt) : null;
 
     if (responseText) {
-      const rawJson = JSON.parse(responseText);
-      validatedAdvisory = DiagnosisResponseSchema.parse(rawJson);
+      try {
+        const rawJson = JSON.parse(responseText);
+        validatedAdvisory = DiagnosisResponseSchema.parse(rawJson);
+      } catch {
+        validatedAdvisory = buildLocalRagFallback(topPrediction.label, ragContext);
+      }
     } else {
-      validatedAdvisory = buildLocalRagFallback(
-        topPrediction.label,
-        ragContext,
-      );
+      validatedAdvisory = buildLocalRagFallback(topPrediction.label, ragContext);
     }
 
     return NextResponse.json({
