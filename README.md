@@ -1,90 +1,130 @@
 # 🌿 KrishiRakshak AI (কৃষিরক্ষক এআই)
-**Instant AI Crop Disease Diagnosis & Bilingual Agronomy Advisor**
+**Instant AI Crop Pathology & Verified Bilingual Agronomy Advisor**
 
 > **International AI Builders Congress 2026** • Domain: **AgriSphere AI** • Challenge: **Crop Guardian**
 
-KrishiRakshak AI is a full-stack agentic agricultural diagnostic platform built to help Bangladeshi farmers and extension workers detect crop diseases from leaf photos in seconds and receive safe, verified treatment plans in both **Bangla (বাংলা)** and **English**.
+KrishiRakshak AI is a field-ready, full-stack agricultural diagnostic and precision agronomy platform built specifically for Bangladeshi farmers and agricultural extension officers. Combining edge-speed Computer Vision (**MobileNetV2 ONNX**) with a **BARI/DAE-grounded RAG + Gemini 2.5 Flash** pipeline, it enables farmers to scan diseased leaves in seconds and receive safe, verified treatment protocols, voice guidance, and precision dosage calculations in both **Bangla (বাংলা)** and **English**.
 
-## live Link : https://krishi-rakshak-ai-five.vercel.app/
+### 🌐 Live Demo: [https://krishi-rakshak-ai-five.vercel.app/](https://krishi-rakshak-ai-five.vercel.app/)
 
 ---
 
-## ✨ Key Features
+## ✨ Key Features & Modules
 
-- **🔬 Server-Side Computer Vision (MobileNetV2 + ONNX):** Fine-tuned MobileNetV2 model trained on the PlantVillage dataset (38 crop disease classes, **99.64% validation accuracy**), exported to ONNX and executed via `onnxruntime-node` with `sharp` image preprocessing.
-- **📚 Verified BARI & DAE RAG Pipeline:** Maps predicted disease classes against a localized knowledge base (`data/bari_guidelines.json`) derived from Bangladesh Agricultural Research Institute (BARI) and Department of Agricultural Extension (DAE) protocols.
-- **🤖 Bilingual Advisory Synthesis (Gemini 2.5 Flash + Zod):** Generates structured, farmer-friendly Bangla and English diagnoses, organic remedies, safe chemical dosages, and preventive tips strictly validated via Zod schemas.
-- **📊 Interactive Confidence Visualization:** Displays Top-3 ML prediction probabilities using Recharts horizontal bar charts.
-- **🛡️ Responsible AI Guardrails:** Automatically triggers a caution banner when model confidence drops below 70%, advising farmers to consult local agricultural officers.
-- **📖 Built-in Live Documentation (`/docs`):** Includes an integrated system architecture and pipeline documentation module.
+### 1. 🔬 Optical Leaf Scanner (`/`) — Real-Time Diagnosis & Live Camera
+- **Live Camera Modal & Drag-and-Drop (`getUserMedia` API):** Farmers can either upload photos from their gallery or launch an in-app live viewfinder modal with front/rear camera switching (`environment` / `user`) to capture infected leaves directly in the field across both mobile and desktop devices.
+- **2-Layer Out-of-Distribution (OOD) Guardrail:** Prevents Softmax hallucination on non-leaf photos (portraits, animals, indoor objects, documents) using:
+  1. **Fast HSV Plant-Pigment Pixel Filter (`sharp`):** Instantly verifies chlorophyll/foliage color ratios before running neural inference.
+  2. **Gemini Multimodal Vision Gatekeeper:** Confirms the uploaded image actually depicts a crop leaf or agricultural plant.
+- **Server-Side ONNX Inference (MobileNetV2):** Fine-tuned on 38 PlantVillage crop disease classes (**99.64% validation accuracy**), exported to ONNX and executed via `onnxruntime-node` with `sharp` 224×224 ImageNet normalization.
+- **Confidence Guardrail (<70%) & Top-3 Chart:** Visualizes Top-3 disease probabilities via Recharts horizontal bar charts and triggers an automatic caution banner advising consultation with local agricultural officers whenever confidence drops below 70%.
+- **Bilingual Advisory, Voice Readout & Print Prescription:** Synthesizes structured symptoms, organic remedies, safe chemical dosages, and preventive measures via **Gemini 2.5 Flash + Zod** (with automatic local BARI/DAE fallback), complete with **Web Speech API Bangla/English audio readout (Listen)**, one-click copy, session scan history, and print-friendly prescriptions.
+
+### 2. 🧮 Precision Agronomy Calculators (`/tools`) — Preventing Chemical Overuse
+- **Spray Tank Pesticide Dosage Calculator:** Computes exact total water volume and required pesticide quantity (grams/mL) based on recommended dosage per liter, tank capacity, and number of tanks—preventing crop burn, soil toxicity, and wasted expenditure.
+- **BARI Balanced Fertilizer Estimator:** Calculates Bangladesh Agricultural Research Institute (BARI) recommended **Urea, TSP, and MOP** quantities tailored to crop type (Rice, Potato, Tomato, Maize, etc.) and local land units (**Decimal / শতাংশ, Bigha / বিঘা, Acre / একর**).
+
+### 3. 📚 Verified BARI/DAE Knowledge Base & Demo Simulator (`/library`)
+- **1-Click Sample Leaf Simulator:** Allows judges and first-time users without physical crop leaves on hand to load sample healthy and diseased leaves into the scanner with a single click.
+- **Searchable Offline Agronomy Manual:** Provides instant keyword search across verified BARI and Department of Agricultural Extension (DAE) organic and chemical management protocols.
+
+### 4. 📖 System Architecture Docs (`/docs`) & Universal Field Accessibility
+- **High-Contrast Sunlight (Light) & Dark Emerald Modes:** Engineered with adaptive CSS custom properties so farmers can read results clearly under harsh outdoor sunlight as well as indoors, paired with a responsive two-row mobile navigation bar and instant **বাংলা / English** toggling.
+
+---
+
+## 🌍 Real-World Impact for Farmers
+
+- **Prevents Yield Loss Early:** Enables instant on-field disease identification before infections spread across entire plots.
+- **Eliminates Chemical Overuse & Cost Waste:** Precision spray-tank and land-unit fertilizer calculators protect soil health and save farmers money on excess inputs.
+- **Bridges Literacy & Language Barriers:** Natural Bangla instructions paired with built-in audio readout (**Listen**) empower farmers with limited literacy to use the platform independently.
 
 ---
 
 ## 🏗️ System Architecture
 
 ```text
-Leaf Photo Upload (Client UI)
+Live Camera Capture / File Upload / 1-Click Sample Leaf
        │
        ▼
-Next.js API Route (/api/diagnose)
-  ├── 1. Image Preprocessing (Sharp: 224x224 RGB + ImageNet Normalization)
-  ├── 2. ONNX ML Inference (MobileNetV2 via onnxruntime-node → Top-3 Probs)
-  ├── 3. RAG Retriever (data/bari_guidelines.json → BARI/DAE Protocols)
-  └── 4. Gemini 2.5 Flash + Zod Validation → Bilingual JSON Advisory
+Next.js API Route (/api/analyze)
+  ├── 1. OOD Gatekeeper Layer 1: HSV Plant-Pigment Pixel Filter (sharp)
+  ├── 2. OOD Gatekeeper Layer 2: Gemini Vision Leaf Verification
+  ├── 3. Preprocessing (224×224 RGB + ImageNet Normalization)
+  ├── 4. ONNX ML Inference (MobileNetV2 via onnxruntime-node → Top-3 Probs)
+  ├── 5. RAG Retriever (data/bari_guidelines.json → BARI/DAE Protocols)
+  └── 6. Gemini 2.5 Flash + Zod Validation (with Local RAG Fallback)
        │
        ▼
-Interactive Results Dashboard (Recharts + BN/EN Toggle)
+Interactive Bilingual Dashboard (Recharts + Bangla TTS + Print Prescription)
 ```
 
-🛠️ Tech Stack
-Frontend: Next.js 16 (App Router), React, TypeScript, Tailwind CSS v4, Lucide Icons, Recharts
-Backend & ML Runtime: Next.js API Routes, onnxruntime-node, sharp
-AI & Validation: Google Generative AI SDK (gemini-2.5-flash), Zod
-Model Training (/ml): PyTorch, Torchvision (MobileNetV2), ONNX Opset 14
+---
 
-🚀 Getting Started (Local Setup)
-1. Clone the Repository
-```bash
-git clone https://github.com/YOUR_USERNAME/krishirakshak-ai.git
-cd krishirakshak-ai
-```
+## 🛠️ Tech Stack
 
-2. Install Dependencies
-```bash
-npm install
-```
+- **Frontend:** Next.js 16 (App Router), React, TypeScript, Tailwind CSS v4 (Custom Adaptive Theme Variables), Lucide Icons, Recharts
+- **Backend & ML Runtime:** Next.js API Routes, `onnxruntime-node`, `sharp`, Native Web `getUserMedia` & Speech Synthesis APIs
+- **AI, RAG & Validation:** Google Generative AI SDK (`gemini-2.5-flash` / `gemini-2.0-flash`), Zod Schema Validation, BARI/DAE JSON Knowledge Base
+- **Model Training (`/ml`):** PyTorch, Torchvision (MobileNetV2), ONNX Opset 14
 
-3. Configure Environment Variables
-Create a `.env.local` file in the root directory and add your Gemini API key:
+---
 
-```plaintext
-GEMINI_API_KEY=your_google_gemini_api_key_here
-```
+## 🚀 Getting Started (Local Setup)
 
-4. Run the Development Server
-```bash
-npm run dev
-```
+1. **Clone the Repository**
+   ```bash
+   git clone [https://github.com/YOUR_USERNAME/krishirakshak-ai.git](https://github.com/YOUR_USERNAME/krishirakshak-ai.git)
+   cd krishirakshak-ai
+   ```
 
-Open http://localhost:3000 in your browser to use the app, or visit http://localhost:3000/docs for technical documentation.
+2. **Install Dependencies**
+   ```bash
+   npm install
+   ```
 
-📁 Project Structure
-```
+3. **Configure Environment Variables**
+   Create a `.env.local` file in the root directory and add your Gemini API key:
+   ```env
+   GEMINI_API_KEY=your_google_gemini_api_key_here
+   ```
+
+4. **Run the Development Server**
+   ```bash
+   npm run dev
+   ```
+   Open [http://localhost:3000](http://localhost:3000) in your browser to use the scanner, or explore `/tools`, `/library`, and `/docs`.
+
+---
+
+## 📁 Project Structure
+
+```text
 krishirakshak-ai/
 ├── app/
-│   ├── api/diagnose/route.ts   # 3-step ML + RAG + Gemini inference pipeline
-│   ├── docs/page.tsx           # Live technical documentation module
-│   ├── globals.css             # Tailwind CSS v4 entry
-│   └── page.tsx                # Main bilingual UI & Recharts dashboard
+│   ├── api/analyze/route.ts        # 2-layer OOD guardrail + ONNX + RAG + Gemini pipeline
+│   ├── components/
+│   │   ├── Navbar.tsx              # Responsive 2-row mobile/desktop header + theme/lang toggles
+│   │   ├── CameraModal.tsx         # Live getUserMedia viewfinder modal with front/rear flip
+│   │   └── LeafScannerPanel.tsx    # Drag-and-drop scanner, live camera trigger & scan history
+│   ├── tools/page.tsx              # Spray tank dosage & BARI fertilizer calculators
+│   ├── library/page.tsx            # Searchable BARI/DAE manual & 1-click sample leaf simulator
+│   ├── docs/page.tsx               # Live system architecture & methodology documentation
+│   ├── lib/useKrishiStore.ts       # Persistent theme, language & session scan state
+│   ├── globals.css                 # Tailwind CSS v4 + High-Contrast Light/Dark theme rules
+│   └── page.tsx                    # Main bilingual diagnostic & Recharts dashboard
 ├── data/
-│   └── bari_guidelines.json    # Verified BARI/DAE RAG knowledge base
-├── ml/                         # Model training scripts & evaluation artifacts
+│   └── bari_guidelines.json        # Verified BARI/DAE RAG knowledge base
+├── ml/                             # PyTorch MobileNetV2 training & ONNX export scripts
 ├── public/models/
-│   ├── crop_disease_model.onnx # Exported MobileNetV2 ONNX model
+│   ├── crop_disease_model.onnx     # Exported MobileNetV2 ONNX model
 │   ├── crop_disease_model.onnx.data
-│   └── labels.json             # 38-class index-to-label mapping
-└── next.config.ts              # External server packages config (onnxruntime-node, sharp)
+│   └── labels.json                 # 38-class index-to-label mapping
+└── next.config.ts                  # Server external packages config (onnxruntime-node, sharp)
 ```
 
-⚠️ Agricultural Disclaimer
-This tool is designed as an AI decision-support assistant. Always follow local Department of Agricultural Extension (DAE) guidelines and consult an agricultural officer before applying chemical pesticides.
+---
+
+## ⚠️ Agricultural Disclaimer
+
+This tool is designed as an AI decision-support assistant. Always follow local Department of Agricultural Extension (DAE) guidelines and consult a local agricultural officer before applying chemical pesticides.

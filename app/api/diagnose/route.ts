@@ -32,11 +32,21 @@ let cachedLabels: Record<string, string> | null = null;
 
 async function getModelAndLabels() {
   if (!cachedSession) {
-    const modelPath = path.join(process.cwd(), "public", "models", "crop_disease_model.onnx");
+    const modelPath = path.join(
+      process.cwd(),
+      "public",
+      "models",
+      "crop_disease_model.onnx",
+    );
     cachedSession = await ort.InferenceSession.create(modelPath);
   }
   if (!cachedLabels) {
-    const labelsPath = path.join(process.cwd(), "public", "models", "labels.json");
+    const labelsPath = path.join(
+      process.cwd(),
+      "public",
+      "models",
+      "labels.json",
+    );
     cachedLabels = JSON.parse(fs.readFileSync(labelsPath, "utf-8"));
   }
   return { session: cachedSession, labelsMap: cachedLabels! };
@@ -59,9 +69,96 @@ function retrieveGuideline(predictedLabel: string) {
   return guidelines[guidelines.length - 1];
 }
 
+// Layer 1: Fast RGB/HSV Plant-Pigment Gatekeeper (catches selfies, portraits, documents, indoor objects)
+function hasPlantPigments(rgbBuffer: Buffer, channels: number): boolean {
+  const totalPixels = 224 * 224;
+  let greenOrFoliagePixels = 0;
+  let skinTonePixels = 0;
+
+  for (let i = 0; i < totalPixels; i++) {
+    const r = rgbBuffer[i * channels];
+    const g = rgbBuffer[i * channels + 1];
+    const b = rgbBuffer[i * channels + 2];
+
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const diff = max - min;
+    const sat = max === 0 ? 0 : diff / max;
+
+    // Hue calculation (0 - 360)
+    let hue = 0;
+    if (diff > 0) {
+      if (max === r) hue = 60 * (((g - b) / diff) % 6);
+      else if (max === g) hue = 60 * ((b - r) / diff + 2);
+      else hue = 60 * ((r - g) / diff + 4);
+    }
+    if (hue < 0) hue += 360;
+
+    // Chlorophyll / yellow-green / leaf foliage hue range (42° to 165°) with reasonable saturation
+    if (hue >= 42 && hue <= 165 && sat >= 0.14 && max > 28) {
+      greenOrFoliagePixels++;
+    }
+
+    // Human skin-tone detection (warm low-green pinkish/tan tones)
+    if (
+      r > 95 &&
+      g > 40 &&
+      b > 20 &&
+      r > g &&
+      r > b &&
+      Math.abs(r - g) > 15 &&
+      hue < 38
+    ) {
+      skinTonePixels++;
+    }
+  }
+
+  const foliageRatio = greenOrFoliagePixels / totalPixels;
+  const skinRatio = skinTonePixels / totalPixels;
+
+  // Reject if almost no plant pigment (< 6%) OR dominated by human skin tones with minimal foliage
+  if (foliageRatio < 0.06) return false;
+  if (skinRatio > 0.18 && foliageRatio < 0.25) return false;
+
+  return true;
+}
+
+// Layer 2: Multimodal Gemini Vision Gatekeeper (verifies image actually contains a plant leaf)
+async function verifyIsCropLeafWithGemini(
+  genAI: GoogleGenerativeAI,
+  jpegBuffer: Buffer,
+): Promise<boolean> {
+  try {
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      generationConfig: { responseMimeType: "application/json" },
+    });
+
+    const base64Img = jpegBuffer.toString("base64");
+    const checkPrompt =
+      'Inspect this image. Does it primarily show a plant leaf, crop foliage, or agricultural plant? Reply strictly in JSON: {"is_leaf": true} or {"is_leaf": false}.';
+
+    const result = await Promise.race([
+      model.generateContent([
+        checkPrompt,
+        { inlineData: { data: base64Img, mimeType: "image/jpeg" } },
+      ]),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Vision gate timeout")), 4500),
+      ),
+    ]);
+
+    const parsed = JSON.parse(result.response.text());
+    return Boolean(parsed.is_leaf);
+  } catch {
+    // If Gemini times out or key is missing, rely on Layer 1 pixel check
+    return true;
+  }
+}
+
 async function generateWithSmartRetry(
   genAI: GoogleGenerativeAI,
-  prompt: string
+  prompt: string,
 ): Promise<string | null> {
   const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash"];
 
@@ -75,7 +172,7 @@ async function generateWithSmartRetry(
       const result = await Promise.race([
         model.generateContent(prompt),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Gemini timeout")), 7000)
+          setTimeout(() => reject(new Error("Gemini timeout")), 7000),
         ),
       ]);
 
@@ -90,7 +187,7 @@ async function generateWithSmartRetry(
 
 function buildLocalRagFallback(
   predictedLabel: string,
-  ragContext: (typeof guidelines)[number]
+  ragContext: (typeof guidelines)[number],
 ): DiagnosisAdvisory {
   const parts = predictedLabel.split("___");
   const cropEn = (parts[0] || "Crop").replace(/_/g, " ");
@@ -142,6 +239,38 @@ export async function POST(req: NextRequest) {
       .raw()
       .toBuffer({ resolveWithObject: true });
 
+    // OOD Guardrail Layer 1: Fast Plant-Pigment Check
+    if (!hasPlantPigments(data, info.channels)) {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid Image (Non-Leaf Detected): Please upload a clear photo of a crop or plant leaf. / সঠিক ছবি দিন: এটি ফসলের পাতা নয়, অনুগ্রহ করে আক্রান্ত পাতার পরিষ্কার ছবি আপলোড করুন।",
+        },
+        { status: 400 },
+      );
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY || "";
+    const genAI = new GoogleGenerativeAI(apiKey);
+
+    // OOD Guardrail Layer 2: Gemini Vision Leaf Verification (when API key is active)
+    if (apiKey) {
+      const compactJpeg = await sharp(buffer)
+        .resize(256, 256)
+        .jpeg({ quality: 75 })
+        .toBuffer();
+      const isActualLeaf = await verifyIsCropLeafWithGemini(genAI, compactJpeg);
+      if (!isActualLeaf) {
+        return NextResponse.json(
+          {
+            error:
+              "Invalid Image (Non-Leaf Detected): No plant leaf found in this photo. Please scan a crop leaf. / সঠিক ছবি দিন: ছবিতে কোনো ফসলের পাতা পাওয়া যায়নি, অনুগ্রহ করে পাতার ছবি দিন।",
+          },
+          { status: 400 },
+        );
+      }
+    }
+
     const floatData = new Float32Array(3 * 224 * 224);
     const mean = [0.485, 0.456, 0.406];
     const std = [0.229, 0.224, 0.225];
@@ -175,8 +304,6 @@ export async function POST(req: NextRequest) {
 
     // 3. RAG Retrieval + Gemini Bilingual Synthesis
     const ragContext = retrieveGuideline(topPrediction.label);
-    const apiKey = process.env.GEMINI_API_KEY || "";
-    const genAI = new GoogleGenerativeAI(apiKey);
 
     const prompt = `
 You are an expert Bangladeshi Agronomist and Plant Pathologist.
@@ -203,17 +330,25 @@ Generate a structured JSON response strictly matching this schema:
 `;
 
     let validatedAdvisory: DiagnosisAdvisory;
-    const responseText = apiKey ? await generateWithSmartRetry(genAI, prompt) : null;
+    const responseText = apiKey
+      ? await generateWithSmartRetry(genAI, prompt)
+      : null;
 
     if (responseText) {
       try {
         const rawJson = JSON.parse(responseText);
         validatedAdvisory = DiagnosisResponseSchema.parse(rawJson);
       } catch {
-        validatedAdvisory = buildLocalRagFallback(topPrediction.label, ragContext);
+        validatedAdvisory = buildLocalRagFallback(
+          topPrediction.label,
+          ragContext,
+        );
       }
     } else {
-      validatedAdvisory = buildLocalRagFallback(topPrediction.label, ragContext);
+      validatedAdvisory = buildLocalRagFallback(
+        topPrediction.label,
+        ragContext,
+      );
     }
 
     return NextResponse.json({
